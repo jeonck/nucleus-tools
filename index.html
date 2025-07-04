@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nucleus Tools Web Interface</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.22.5/babel.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-50">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        const NUCLEUS_TOOLS = [
+            {
+                name: 'discover_all_svcs',
+                icon: 'fas fa-search',
+                description: 'Used for debugging of internals of Discovery service',
+                category: 'debug',
+                args: [
+                    { name: 'server', type: 'text', required: true, placeholder: 'Server (hostname or URL)' }
+                ]
+            },
+            {
+                name: 'dump_backup',
+                icon: 'fas fa-archive',
+                description: 'Create a backup of a Nucleus Server',
+                category: 'backup',
+                args: [
+                    { name: 'server', type: 'text', required: true, placeholder: 'Source Nucleus Server' },
+                    { name: 'path', type: 'text', required: true, placeholder: 'Source Nucleus path (ie, `/Projects/my_project`)' },
+                    { name: 'dest', type: 'text', required: true, placeholder: 'Destination directory' },
+                    { name: 'data-dir', type: 'text', required: false, placeholder: 'Directory for content' },
+                    { name: 'user', type: 'text', required: false, placeholder: 'Username (default: omniverse)' },
+                    { name: 'password', type: 'password', required: false, placeholder: 'Password' },
+                    { name: 'concurrent-tasks', type: 'number', required: false, placeholder: 'No of concurrent async tasks (default: 10)' },
+                    { name: 'skip', type: 'text', required: false, placeholder: 'Nucleus paths to skip' }
+                ]
+            },
+            {
+                name: 'dump_data',
+                icon: 'fas fa-download',
+                description: 'Create a copy of a directory in Nucleus locally',
+                category: 'data',
+                args: [
+                    { name: 'server', type: 'text', required: true, placeholder: 'Source Nucleus Server' },
+                    { name: 'path', type: 'text', required: true, placeholder: 'Source Nucleus path (ie, `/Projects/my_project`)' },
+                    { name: 'dest', type: 'text', required: true, placeholder: 'Destination directory' },
+                    { name: 'data-dir', type: 'text', required: false, placeholder: 'Directory for content' },
+                    { name: 'user', type: 'text', required: false, placeholder: 'Username (default: omniverse)' },
+                    { name: 'password', type: 'password', required: false, placeholder: 'Password' },
+                    { name: 'port', type: 'number', required: false, placeholder: 'Server port (default: 3009)' },
+                    { name: 'concurrent-tasks', type: 'number', required: false, placeholder: 'No of concurrent async tasks (default: 10)' }
+                ]
+            },
+            {
+                name: 'ls',
+                icon: 'fas fa-list',
+                description: 'List paths on a Nucleus, possibly recursively',
+                category: 'navigation',
+                args: [
+                    { name: 'server', type: 'text', required: true, placeholder: 'Nucleus server' },
+                    { name: 'path', type: 'text', required: true, placeholder: 'Path on Nucleus (ie, `/Projects/my_project`)' },
+                    { name: 'user', type: 'text', required: false, placeholder: 'Username (default: omniverse)' },
+                    { name: 'password', type: 'password', required: false, placeholder: 'Password' },
+                    { name: 'recursive', type: 'checkbox', required: false, label: 'Recurse into subdirs' },
+                    { name: 'pad', type: 'checkbox', required: false, label: 'Pad (print tree style)' }
+                ]
+            },
+            {
+                name: 'mkdirs',
+                icon: 'fas fa-folder-plus',
+                description: 'Create directories in Nucleus',
+                category: 'management',
+                args: [
+                    { name: 'server', type: 'text', required: true, placeholder: 'Nucleus server' },
+                    { name: 'path', type: 'text', required: true, placeholder: 'Directories to create' },
+                    { name: 'user', type: 'text', required: false, placeholder: 'Username (default: omniverse)' },
+                    { name: 'password', type: 'password', required: false, placeholder: 'Password' }
+                ]
+            },
+            {
+                name: 'mklinks',
+                icon: 'fas fa-link',
+                description: 'Make a dir of symlinks to datafiles off of dump_data or dump_backup\'s output dirs',
+                category: 'utility',
+                args: [
+                    { name: 'dir_with_meta_files', type: 'text', required: true, placeholder: 'Source dir with meta files' },
+                    { name: 'dest_dir', type: 'text', required: true, placeholder: 'Directory to create symlinks in' },
+                    { name: 'data-dir', type: 'text', required: true, placeholder: 'Directory with data files' },
+                    { name: 'host-data-dir', type: 'text', required: true, placeholder: 'Host path to data files' }
+                ]
+            },
+            {
+                name: 'ping',
+                icon: 'fas fa-heartbeat',
+                description: 'Ping a Nucleus using Nucleus API calls',
+                category: 'debug',
+                args: [
+                    { name: 'server', type: 'text', required: true, placeholder: 'Server to ping' },
+                    { name: 'user', type: 'text', required: false, placeholder: 'Username (default: omniverse)' },
+                    { name: 'password', type: 'password', required: false, placeholder: 'Password' },
+                    { name: 'port', type: 'number', required: false, placeholder: 'Port (default: 3009)' },
+                    { name: 'count', type: 'number', required: false, placeholder: 'Number of pings to send' }
+                ]
+            },
+            {
+                name: 'rm',
+                icon: 'fas fa-trash',
+                description: 'Delete files and dirs on Nucleus, recursively',
+                category: 'management',
+                danger: true,
+                args: [
+                    { name: 'server', type: 'text', required: true, placeholder: 'Nucleus server' },
+                    { name: 'path', type: 'text', required: true, placeholder: 'Path on Nucleus (ie, `/Projects/my_project`)' },
+                    { name: 'user', type: 'text', required: false, placeholder: 'Username (default: omniverse)' },
+                    { name: 'password', type: 'password', required: false, placeholder: 'Password' },
+                    { name: 'do-it', type: 'checkbox', required: false, label: 'Actually do the deletion (default mode is dry)' }
+                ]
+            },
+            {
+                name: 'scrub_users',
+                icon: 'fas fa-user-shield',
+                description: 'Scrub user\'s personally identifiable information (PII) in Nucleus for GDPR compliance',
+                category: 'admin',
+                danger: true,
+                args: [
+                    { name: 'server', type: 'text', required: true, placeholder: 'Nucleus server' },
+                    { name: 'original_username', type: 'text', required: true, placeholder: 'Original username to rename' },
+                    { name: 'user', type: 'text', required: false, placeholder: 'Username (default: omniverse)' },
+                    { name: 'password', type: 'password', required: false, placeholder: 'Password' },
+                    { name: 'port', type: 'number', required: false, placeholder: 'Server port (default: 3009)' },
+                    { name: 'do-it', type: 'checkbox', required: false, label: 'Actually do the scrubbing (default mode is dry)' }
+                ]
+            },
+            {
+                name: 'upload',
+                icon: 'fas fa-upload',
+                description: 'Upload local files, data dumps, and backups to Nucleus',
+                category: 'data',
+                args: [
+                    { name: 'dir', type: 'text', required: true, placeholder: 'Source dir' },
+                    { name: 'server', type: 'text', required: true, placeholder: 'Target Nucleus Server' },
+                    { name: 'path', type: 'text', required: true, placeholder: 'Destination Nucleus path (i.e., `/Projects/my_project`)' },
+                    { name: 'branch', type: 'text', required: false, placeholder: 'Branch to upload to (default: default)' },
+                    { name: 'data-dir', type: 'text', required: false, placeholder: 'Directory with content files' },
+                    { name: 'user', type: 'text', required: false, placeholder: 'Username (default: omniverse)' },
+                    { name: 'password', type: 'password', required: false, placeholder: 'Password' }
+                ]
+            }
+        ];
+
+        function ToolCard({ tool, onExecute }) {
+            const [isExpanded, setIsExpanded] = useState(false);
+            const [formData, setFormData] = useState({});
+
+            const getCategoryColor = (category) => {
+                const colors = {
+                    debug: 'bg-blue-100 text-blue-800',
+                    backup: 'bg-green-100 text-green-800',
+                    data: 'bg-purple-100 text-purple-800',
+                    navigation: 'bg-yellow-100 text-yellow-800',
+                    management: 'bg-red-100 text-red-800',
+                    utility: 'bg-gray-100 text-gray-800',
+                    admin: 'bg-orange-100 text-orange-800'
+                };
+                return colors[category] || 'bg-gray-100 text-gray-800';
+            };
+
+            const handleInputChange = (argName, value) => {
+                setFormData(prev => ({
+                    ...prev,
+                    [argName]: value
+                }));
+            };
+
+            const generateCommand = () => {
+                let command = `sudo docker run -d --restart always -e "ACCEPT_EULA=Y" -p 8081:80 $NUC_TOOLS ${tool.name}`;
+                
+                tool.args.forEach(arg => {
+                    const value = formData[arg.name];
+                    if (value !== undefined && value !== '') {
+                        if (arg.type === 'checkbox') {
+                            if (value) {
+                                command += ` --${arg.name}`;
+                            }
+                        } else {
+                            command += ` ${arg.name === 'server' || arg.name === 'path' || arg.name === 'dest' || arg.name === 'dir' || arg.name === 'dir_with_meta_files' || arg.name === 'dest_dir' || arg.name === 'original_username' ? value : `--${arg.name} "${value}"`}`;
+                        }
+                    }
+                });
+
+                return command;
+            };
+
+            return (
+                <div className={`bg-white rounded-lg shadow-md p-6 border-l-4 ${tool.danger ? 'border-red-500' : 'border-blue-500'}`}>
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center space-x-3">
+                            <i className={`${tool.icon} text-xl ${tool.danger ? 'text-red-500' : 'text-blue-500'}`}></i>
+                            <div>
+                                <h3 className="text-lg font-semibold text-gray-900">{tool.name}</h3>
+                                <span className={`inline-block px-2 py-1 text-xs font-medium rounded-full ${getCategoryColor(tool.category)}`}>
+                                    {tool.category}
+                                </span>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => setIsExpanded(!isExpanded)}
+                            className="text-gray-500 hover:text-gray-700"
+                        >
+                            <i className={`fas fa-chevron-${isExpanded ? 'up' : 'down'}`}></i>
+                        </button>
+                    </div>
+                    
+                    <p className="text-gray-600 mb-4">{tool.description}</p>
+                    
+                    {tool.danger && (
+                        <div className="bg-red-50 border border-red-200 rounded-md p-3 mb-4">
+                            <div className="flex">
+                                <i className="fas fa-exclamation-triangle text-red-500 mr-2"></i>
+                                <span className="text-red-700 text-sm font-medium">위험한 작업입니다. 주의해서 사용하세요.</span>
+                            </div>
+                        </div>
+                    )}
+
+                    {isExpanded && (
+                        <div className="space-y-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {tool.args.map((arg, index) => (
+                                    <div key={index} className="space-y-2">
+                                        <label className="block text-sm font-medium text-gray-700">
+                                            {arg.name}
+                                            {arg.required && <span className="text-red-500 ml-1">*</span>}
+                                        </label>
+                                        {arg.type === 'checkbox' ? (
+                                            <div className="flex items-center">
+                                                <input
+                                                    type="checkbox"
+                                                    className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                                    checked={formData[arg.name] || false}
+                                                    onChange={(e) => handleInputChange(arg.name, e.target.checked)}
+                                                />
+                                                <label className="ml-2 text-sm text-gray-600">
+                                                    {arg.label}
+                                                </label>
+                                            </div>
+                                        ) : (
+                                            <input
+                                                type={arg.type}
+                                                placeholder={arg.placeholder}
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                value={formData[arg.name] || ''}
+                                                onChange={(e) => handleInputChange(arg.name, e.target.value)}
+                                            />
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div className="mt-6 p-4 bg-gray-50 rounded-md">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">생성된 명령어:</label>
+                                <code className="block w-full p-3 bg-gray-900 text-green-400 rounded-md text-sm font-mono break-all">
+                                    {generateCommand()}
+                                </code>
+                            </div>
+
+                            <div className="flex space-x-3">
+                                <button
+                                    onClick={() => onExecute(generateCommand())}
+                                    className={`flex-1 px-4 py-2 rounded-md font-medium ${
+                                        tool.danger 
+                                            ? 'bg-red-600 hover:bg-red-700 text-white' 
+                                            : 'bg-blue-600 hover:bg-blue-700 text-white'
+                                    } transition-colors`}
+                                >
+                                    <i className="fas fa-play mr-2"></i>
+                                    실행
+                                </button>
+                                <button
+                                    onClick={() => navigator.clipboard.writeText(generateCommand())}
+                                    className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-md font-medium transition-colors"
+                                >
+                                    <i className="fas fa-copy mr-2"></i>
+                                    복사
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        function CommandHistory({ history, onClear }) {
+            return (
+                <div className="bg-white rounded-lg shadow-md p-6">
+                    <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-semibold text-gray-900">명령어 실행 기록</h3>
+                        <button
+                            onClick={onClear}
+                            className="text-red-600 hover:text-red-800"
+                        >
+                            <i className="fas fa-trash mr-1"></i>
+                            모두 삭제
+                        </button>
+                    </div>
+                    
+                    {history.length === 0 ? (
+                        <p className="text-gray-500 text-center py-4">실행된 명령어가 없습니다.</p>
+                    ) : (
+                        <div className="space-y-3 max-h-96 overflow-y-auto">
+                            {history.map((cmd, index) => (
+                                <div key={index} className="p-3 bg-gray-50 rounded-md">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className="text-xs text-gray-500">{cmd.timestamp}</span>
+                                        <button
+                                            onClick={() => navigator.clipboard.writeText(cmd.command)}
+                                            className="text-blue-600 hover:text-blue-800"
+                                        >
+                                            <i className="fas fa-copy"></i>
+                                        </button>
+                                    </div>
+                                    <code className="text-sm font-mono text-gray-800 break-all">
+                                        {cmd.command}
+                                    </code>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        function App() {
+            const [searchTerm, setSearchTerm] = useState('');
+            const [selectedCategory, setSelectedCategory] = useState('all');
+            const [commandHistory, setCommandHistory] = useState([]);
+
+            const categories = ['all', 'debug', 'backup', 'data', 'navigation', 'management', 'utility', 'admin'];
+
+            const filteredTools = NUCLEUS_TOOLS.filter(tool => {
+                const matchesSearch = tool.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                    tool.description.toLowerCase().includes(searchTerm.toLowerCase());
+                const matchesCategory = selectedCategory === 'all' || tool.category === selectedCategory;
+                return matchesSearch && matchesCategory;
+            });
+
+            const handleExecute = (command) => {
+                const newEntry = {
+                    command,
+                    timestamp: new Date().toLocaleString('ko-KR')
+                };
+                setCommandHistory(prev => [newEntry, ...prev]);
+                
+                // 실제 실행은 여기서 구현 (예: API 호출 등)
+                alert('명령어가 실행될 예정입니다:\n' + command);
+            };
+
+            const clearHistory = () => {
+                setCommandHistory([]);
+            };
+
+            return (
+                <div className="min-h-screen bg-gray-50 py-8">
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                        <div className="text-center mb-8">
+                            <h1 className="text-3xl font-bold text-gray-900 mb-4">
+                                <i className="fas fa-cogs mr-3 text-blue-600"></i>
+                                Nucleus Tools Web Interface
+                            </h1>
+                            <p className="text-lg text-gray-600">
+                                NVIDIA Omniverse Nucleus 서버를 관리하기 위한 도구들
+                            </p>
+                        </div>
+
+                        <div className="mb-8 flex flex-col sm:flex-row gap-4">
+                            <div className="flex-1">
+                                <input
+                                    type="text"
+                                    placeholder="도구 검색..."
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                />
+                            </div>
+                            <select
+                                className="px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                value={selectedCategory}
+                                onChange={(e) => setSelectedCategory(e.target.value)}
+                            >
+                                {categories.map(cat => (
+                                    <option key={cat} value={cat}>
+                                        {cat === 'all' ? '모든 카테고리' : cat}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                            <div className="lg:col-span-2">
+                                <div className="space-y-6">
+                                    {filteredTools.map((tool, index) => (
+                                        <ToolCard 
+                                            key={index} 
+                                            tool={tool} 
+                                            onExecute={handleExecute}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+                            
+                            <div className="lg:col-span-1">
+                                <CommandHistory 
+                                    history={commandHistory} 
+                                    onClear={clearHistory}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>

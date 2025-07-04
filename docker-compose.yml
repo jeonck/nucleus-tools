@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  nucleus-tools-web:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - .:/app
+    working_dir: /app
+    command: python server.py --host 0.0.0.0
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+
+  # Nucleus Tools 컨테이너 (예시)
+  # nucleus-tools:
+  #   image: ${NUC_TOOLS:-nvidia/omniverse-nucleus-tools:latest}
+  #   ports:
+  #     - "8081:80"
+  #   environment:
+  #     - ACCEPT_EULA=Y
+  #   restart: unless-stopped
+  #   depends_on:
+  #     - nucleus-tools-web

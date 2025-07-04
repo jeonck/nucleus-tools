@@ -1,0 +1,25 @@
+{
+  "server": {
+    "host": "",
+    "port": 8080,
+    "auto_open_browser": true
+  },
+  "nucleus": {
+    "default_server": "",
+    "default_user": "omniverse",
+    "default_port": 3009
+  },
+  "docker": {
+    "default_image_var": "$NUC_TOOLS",
+    "default_port_mapping": "8081:80",
+    "default_environment": {
+      "ACCEPT_EULA": "Y"
+    }
+  },
+  "ui": {
+    "theme": "light",
+    "auto_expand_tools": false,
+    "show_command_preview": true,
+    "max_history_items": 50
+  }
+}
